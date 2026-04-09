@@ -208,6 +208,31 @@ body::after {
 
 /* ─── DOJO LABEL ──────────────────────────────────────────── */
 .dojo-label { font-size: clamp(7px, 2vw, 9px); color: #555; align-self: flex-start; margin-top: 2px; }
+
+/* ─── TOTAL RINGS BANK ────────────────────────────────────── */
+.bank {
+  width: 100%;
+  background: var(--panel);
+  border: 3px solid var(--gold);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bank-label { font-size: clamp(6px, 1.8vw, 8px); color: #888; }
+.bank-total { font-size: clamp(13px, 4vw, 18px); color: var(--gold); }
+.bank-reset {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(5px, 1.5vw, 7px);
+  background: #1a1a1a;
+  border: 2px solid #444;
+  color: #555;
+  cursor: pointer;
+  padding: 4px 6px;
+  -webkit-tap-highlight-color: transparent;
+}
+.bank-reset:active { border-color: var(--red); color: var(--red); }
 </style>
 </head>
 <body>
@@ -240,6 +265,14 @@ body::after {
       <canvas class="char-preview" id="prev-ninja"></canvas>
       <span>NINJA</span>
     </button>
+  </div>
+
+  <div class="bank">
+    <div>
+      <div class="bank-label">TOTAL RINGS EARNED</div>
+      <div class="bank-total">🔵 <span id="bankTotal">0</span></div>
+    </div>
+    <button class="bank-reset" onclick="resetBank()" title="Reset after giving reward">RESET</button>
   </div>
 
   <p class="dojo-label">CHOOSE YOUR DOJO:</p>
@@ -397,6 +430,19 @@ function drawSprite(ctx, x, y, sc, pal, flip, action, char) {
 //  Questions are loaded from questions.js
 //  Ask me (Claude) to add more questions to that file!
 // ═══════════════════════════════════════════════════════════════
+// ─── RING BANK (persistent across sessions) ───────────────────
+function loadBank()  { return parseInt(localStorage.getItem('kq_rings') || '0'); }
+function saveBank(n) { localStorage.setItem('kq_rings', n); }
+function updateBankDisplay() {
+  document.getElementById('bankTotal').textContent = loadBank();
+}
+function resetBank() {
+  if (confirm('Reset the ring total? Only do this after giving the reward!')) {
+    saveBank(0);
+    updateBankDisplay();
+  }
+}
+
 // ─── STATE ─────────────────────────────────────────────────────
 let G        = {};
 let lastSub  = 'mixed';
@@ -737,6 +783,10 @@ function endGame() {
   cancelAnimationFrame(raf); raf = null;
   const won = G.pHP >= G.eHP && G.pHP > 0;
 
+  // Add this game's rings to the persistent bank
+  saveBank(loadBank() + G.rings);
+  updateBankDisplay();
+
   const WINS = [
     `AMAZING ${PLAYER_NAME}!\nYOU'RE A KARATE MASTER! 🥋`,
     `BRILLIANT ${PLAYER_NAME}!\nYOU'RE A TOTAL SUPERSTAR! ⭐`,
@@ -795,6 +845,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   drawCharPreviews();
   titleAnim();
+  updateBankDisplay();
 });
 </script>
 </body>
