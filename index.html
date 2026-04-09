@@ -430,16 +430,40 @@ function drawSprite(ctx, x, y, sc, pal, flip, action, char) {
 //  Questions are loaded from questions.js
 //  Ask me (Claude) to add more questions to that file!
 // ═══════════════════════════════════════════════════════════════
-// ─── RING BANK (persistent across sessions) ───────────────────
-function loadBank()  { return parseInt(localStorage.getItem('kq_rings') || '0'); }
-function saveBank(n) { localStorage.setItem('kq_rings', n); }
-function updateBankDisplay() {
-  document.getElementById('bankTotal').textContent = loadBank();
+// ─── RING BANK (persistent via Google Sheets, localStorage fallback) ──
+const BANK_API = 'https://script.google.com/macros/s/AKfycby8roQ5f6_RnEXfpyKQCPJsZGS6bbVfIacKx-pXIHK8TKNzSwOQSXhekU6f4s8_NAX4RA/exec';
+
+async function callBank(params) {
+  try {
+    const r = await fetch(BANK_API + '?' + params, { redirect: 'follow' });
+    const d = await r.json();
+    if (typeof d.total === 'number') {
+      localStorage.setItem('kq_rings', d.total);
+      return d.total;
+    }
+  } catch(e) {}
+  return parseInt(localStorage.getItem('kq_rings') || '0');
 }
-function resetBank() {
+
+async function updateBankDisplay() {
+  const total = await callBank('action=get');
+  document.getElementById('bankTotal').textContent = total;
+}
+
+async function addToBank(amount) {
+  // Optimistic update so display changes immediately
+  const optimistic = parseInt(localStorage.getItem('kq_rings') || '0') + amount;
+  localStorage.setItem('kq_rings', optimistic);
+  document.getElementById('bankTotal').textContent = optimistic;
+  // Sync to sheet in background
+  callBank('action=add&amount=' + amount);
+}
+
+async function resetBank() {
   if (confirm('Reset the ring total? Only do this after giving the reward!')) {
-    saveBank(0);
-    updateBankDisplay();
+    localStorage.setItem('kq_rings', '0');
+    document.getElementById('bankTotal').textContent = '0';
+    callBank('action=reset');
   }
 }
 
@@ -784,8 +808,7 @@ function endGame() {
   const won = G.pHP >= G.eHP && G.pHP > 0;
 
   // Add this game's rings to the persistent bank
-  saveBank(loadBank() + G.rings);
-  updateBankDisplay();
+  addToBank(G.rings);
 
   const WINS = [
     `AMAZING ${PLAYER_NAME}!\nYOU'RE A KARATE MASTER! 🥋`,
