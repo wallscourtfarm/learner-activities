@@ -437,9 +437,11 @@ async function callBank(params) {
   try {
     const r = await fetch(BANK_API + '?' + params, { redirect: 'follow' });
     const d = await r.json();
-    if (typeof d.total === 'number') {
-      localStorage.setItem('kq_rings', d.total);
-      return d.total;
+    const rings = typeof d.rings === 'number' ? d.rings
+                : typeof d.total === 'number' ? d.total : null;
+    if (rings !== null) {
+      localStorage.setItem('kq_rings', rings);
+      return rings;
     }
   } catch(e) {}
   return parseInt(localStorage.getItem('kq_rings') || '0');
@@ -450,13 +452,20 @@ async function updateBankDisplay() {
   document.getElementById('bankTotal').textContent = total;
 }
 
-async function addToBank(amount) {
+async function recordGame(rings, attempted, correct, minutes, subject) {
   // Optimistic update so display changes immediately
-  const optimistic = parseInt(localStorage.getItem('kq_rings') || '0') + amount;
+  const optimistic = parseInt(localStorage.getItem('kq_rings') || '0') + rings;
   localStorage.setItem('kq_rings', optimistic);
   document.getElementById('bankTotal').textContent = optimistic;
-  // Sync to sheet in background
-  callBank('action=add&amount=' + amount);
+  // Sync full session data to sheet in background
+  callBank(
+    'action=add' +
+    '&rings='     + rings +
+    '&attempted=' + attempted +
+    '&correct='   + correct +
+    '&minutes='   + minutes +
+    '&subject='   + encodeURIComponent(subject)
+  );
 }
 
 async function resetBank() {
@@ -726,7 +735,7 @@ function getPool(sub) {
 
 function start(sub) {
   lastSub = sub;
-  G = { sub, pool: getPool(sub), idx: 0, pHP: 3, eHP: 3, rings: 0, locked: false };
+  G = { sub, pool: getPool(sub), idx: 0, pHP: 3, eHP: 3, rings: 0, locked: false, startTime: Date.now() };
   pAct = {n:'idle', t:0}; eAct = {n:'idle', t:0};
   pFlash = false; eFlash = false;
   document.getElementById('hudName').textContent = PLAYER_NAME.toUpperCase();
@@ -807,8 +816,11 @@ function endGame() {
   cancelAnimationFrame(raf); raf = null;
   const won = G.pHP >= G.eHP && G.pHP > 0;
 
-  // Add this game's rings to the persistent bank
-  addToBank(G.rings);
+  // Record session to Google Sheets
+  const minutes  = Math.round((Date.now() - G.startTime) / 6000) / 10;
+  const correct  = Math.round(G.rings / 10);
+  const subjects = { maths: 'Maths', english: 'English', mixed: 'Mixed + Fun' };
+  recordGame(G.rings, G.idx, correct, minutes, subjects[G.sub] || G.sub);
 
   const WINS = [
     `AMAZING ${PLAYER_NAME}!\nYOU'RE A KARATE MASTER! 🥋`,
